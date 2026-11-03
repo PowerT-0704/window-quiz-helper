@@ -2,7 +2,7 @@
 
 ## 修改概述
 
-按用户授权，准备将当前 v0.2.1 源码和便携包公开发布至 `https://github.com/PowerT-0704/window-quiz-helper`。README 新增薄荷图标、下载导航、功能对照、浅深色与设置预览；图片均来自自有模拟窗口。程序功能、超时设置和密钥处理保持原样，软件内 v0.2.1 功能公告沿用已有内容。
+按用户授权，将当前 v0.2.1 源码和便携包公开发布至 `https://github.com/PowerT-0704/window-quiz-helper`。README 新增薄荷图标、下载导航、功能对照、浅深色与设置预览；图片均来自自有模拟窗口。程序功能、超时设置和密钥处理保持原样，软件内 v0.2.1 功能公告沿用已有内容。
 
 ## 文件清单
 
@@ -12,7 +12,23 @@
 
 ## 检查与结果
 
-进行中：标准库回归、文档本地链接、源码白名单／敏感信息检查、便携包一致性、GitHub 推送及 Release 资产校验。完成后将以实际结果更新。
+执行与结果：
+
+```powershell
+$env:QT_QPA_PLATFORM = 'offscreen'
+.\.venv\Scripts\python.exe -m unittest discover -s tests -q
+.\.venv\Scripts\python.exe -m compileall -q scripts/package_source.py
+.\.venv\Scripts\python.exe .\scripts\package_source.py
+git diff --check
+```
+
+- 70 项自动检查，69 项通过，1 项因符号链接权限跳过；未调用真实 API。
+- 52 个白名单源码／文档文件、README 的 10 个本地图片及链接目标检查通过；敏感信息模式检查通过，无运行数据、凭据、日志或用户实际截图。
+- 构建脚本 PowerShell 语法检查通过。本轮沿用已验证的 v0.2.1 EXE，仅同步文档和演示图后重新压缩；未声称重新编译二进制。
+- 便携包 225 个文件，在 D 盘中文路径解压，移除 Python／Qt 开发环境、PATH 仅保留 Windows System32 后，冻结 EXE `--diagnose` 退出 0。图标、PNG、DPAPI、应用导入、捕获接口与 TLS 通过。
+- 公开仓库默认分支 `main`；使用 GitHub noreply 提交邮箱，不暴露个人邮箱。Release 标记为预览版，使用明确版本下载链接。
+- 发布附件为 `window-quiz-helper-windows-x64-v0.2.1.zip`、`window-quiz-helper-source-v0.2.1.zip`、`SHA256SUMS.txt`；上传内容按本地 SHA-256 核验。
+- 首次暂存检查发现上游 FFmpeg 许可 HTML 有两处原始行尾空白，保留第三方原文；项目自身修改的差异检查通过。
 
 ## 剩余风险
 

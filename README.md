@@ -13,7 +13,7 @@
 ![Python](https://img.shields.io/badge/Python-3.14-6ba99a?style=flat-square)
 ![PySide6](https://img.shields.io/badge/PySide6-6.12.0-8dbdab?style=flat-square)
 
-[**下载 Windows 便携版**](https://github.com/PowerT-0704/window-quiz-helper/releases/latest) · [快速开始](#使用便携版) · [开发路线](ROADMAP.md) · [更新日志](CHANGELOG.md) · [反馈问题](https://github.com/PowerT-0704/window-quiz-helper/issues)
+[**下载 Windows 便携版**](https://github.com/PowerT-0704/window-quiz-helper/releases/tag/v0.2.1) · [快速开始](#使用便携版) · [开发路线](ROADMAP.md) · [更新日志](CHANGELOG.md) · [反馈问题](https://github.com/PowerT-0704/window-quiz-helper/issues)
 
 </div>
 
@@ -61,7 +61,7 @@
 
 ## 使用便携版
 
-前往 [Releases](https://github.com/PowerT-0704/window-quiz-helper/releases/latest)，下载 **`window-quiz-helper-windows-x64-v0.2.1.zip`**。便携版无需安装 Python，API 服务需自行配置并承担费用。
+前往 [Releases](https://github.com/PowerT-0704/window-quiz-helper/releases/tag/v0.2.1)，下载 **`window-quiz-helper-windows-x64-v0.2.1.zip`**。便携版无需安装 Python，API 服务需自行配置并承担费用。
 
 1. 将整个 `题目查询助手` 文件夹解压到 **D／E 等非 C 盘可写目录**。保留 EXE 旁的 `_internal` 文件夹。
 2. 双击 `题目查询助手.exe`，进入“设置”。默认接口为 `https://api.deepseek.com`，模型为 `deepseek-flash`。
