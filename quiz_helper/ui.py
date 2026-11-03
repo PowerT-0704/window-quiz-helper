@@ -533,6 +533,7 @@ class FloatingPanel(QFrame):
         self.setWindowFlags(Qt.WindowType.Tool | Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.WindowDoesNotAcceptFocus)
         self.setFixedWidth(300)
         self._drag_offset: QPoint | None = None
+        self._press_position: QPoint | None = None
         self.dragging = False
         self.answer_text = ""
         self.hide_timer = QTimer(self)
@@ -583,8 +584,11 @@ class FloatingPanel(QFrame):
         box.addWidget(self.expand)
 
     def apply_settings(self, settings: AppSettings) -> None:
-        self.setWindowOpacity(settings.overlay_opacity / 100)
-        self.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, settings.overlay_topmost)
+        opacity = settings.overlay_opacity / 100
+        if abs(self.windowOpacity() - opacity) > .005:
+            self.setWindowOpacity(opacity)
+        if bool(self.windowFlags() & Qt.WindowType.WindowStaysOnTopHint) != settings.overlay_topmost:
+            self.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, settings.overlay_topmost)
         color = "#79d9b8" if settings.theme == "dark" else "#267563"
         self.answer.setStyleSheet(f"font-size: {settings.overlay_font_size}px; font-weight: 700; color: {color};")
         self.hide_seconds = settings.answer_hide_seconds
@@ -620,18 +624,30 @@ class FloatingPanel(QFrame):
 
     def mousePressEvent(self, event: QMouseEvent) -> None:
         if event.button() == Qt.MouseButton.LeftButton:
-            self.dragging = True
+            self._press_position = event.globalPosition().toPoint()
             self._drag_offset = event.globalPosition().toPoint() - self.pos()
 
     def mouseMoveEvent(self, event: QMouseEvent) -> None:
         if self._drag_offset is not None and event.buttons() & Qt.MouseButton.LeftButton:
-            self.move(event.globalPosition().toPoint() - self._drag_offset)
+            position = event.globalPosition().toPoint()
+            if not self.dragging and (position - self._press_position).manhattanLength() >= QApplication.startDragDistance():
+                self.dragging = True
+            if self.dragging:
+                self.move(position - self._drag_offset)
 
     def mouseReleaseEvent(self, event: QMouseEvent) -> None:
-        if self._drag_offset is not None:
+        if event.button() == Qt.MouseButton.LeftButton and self._drag_offset is not None:
             self._drag_offset = None
+            self._press_position = None
+            moved = self.dragging
             self.dragging = False
-            self.moved.emit([self.x(), self.y()])
+            if moved:
+                self.moved.emit([self.x(), self.y()])
+
+    def hideEvent(self, event: object) -> None:
+        self._drag_offset = self._press_position = None
+        self.dragging = False
+        super().hideEvent(event)
 
     def resizeEvent(self, event: object) -> None:
         super().resizeEvent(event)

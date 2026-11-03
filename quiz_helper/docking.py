@@ -5,6 +5,7 @@ from __future__ import annotations
 import ctypes
 from ctypes import wintypes
 import os
+import time
 
 from PySide6.QtCore import QObject, QPoint, QRect, QSize, QTimer, Signal
 from PySide6.QtGui import QGuiApplication
@@ -19,6 +20,11 @@ def anchor_position(corner: QPoint, bounds: QRect, size: QSize, margin: int = 12
         max(bounds.left(), min(corner.x() - size.width() - margin, bounds.right() - size.width() + 1)),
         max(bounds.top(), min(corner.y() - size.height() - margin, bounds.bottom() - size.height() + 1)),
     )
+
+
+def logical_corner(physical: QPoint, monitor_origin: QPoint, qt_origin: QPoint, ratio: float) -> QPoint:
+    return qt_origin + QPoint(round((physical.x() - monitor_origin.x()) / ratio),
+                             round((physical.y() - monitor_origin.y()) / ratio))
 
 
 def target_corner(hwnd: int) -> tuple[QPoint, QRect] | None:
@@ -61,8 +67,7 @@ def target_corner(hwnd: int) -> tuple[QPoint, QRect] | None:
         return None  # Do not guess coordinates on an unknown display.
     ratio = screen.devicePixelRatio()
     origin = screen.geometry().topLeft()
-    corner = QPoint(origin.x() + round((rect.right - info.monitor.left) / ratio),
-                    origin.y() + round((rect.bottom - info.monitor.top) / ratio))
+    corner = logical_corner(QPoint(rect.right, rect.bottom), QPoint(info.monitor.left, info.monitor.top), origin, ratio)
     return corner, screen.availableGeometry()
 
 
@@ -74,12 +79,14 @@ class OverlayFollower(QObject):
         self.panel, self.controller = panel, controller
         self.suspended = False
         self._was_minimized = False
+        self._last_recovery = float("-inf")
         self.timer = QTimer(self)
         self.timer.setInterval(100)
         self.timer.timeout.connect(self.refresh)
 
     def start(self) -> None:
         self._was_minimized = False
+        self._last_recovery = float("-inf")
         self.timer.start()
         self.refresh()
 
@@ -89,7 +96,7 @@ class OverlayFollower(QObject):
 
     def refresh(self, force: bool = False) -> None:
         target = self.controller.target
-        if self.suspended or getattr(self.panel, "dragging", False):
+        if self.suspended:
             return
         if not self.controller.running or target is None or not win32.is_window(target.window_id):
             self.panel.hide()
@@ -101,6 +108,8 @@ class OverlayFollower(QObject):
         if self.controller.paused:
             self.panel.hide()
             return
+        if getattr(self.panel, "dragging", False):
+            return
         if self._was_minimized:
             self._was_minimized = False
             self.restored.emit()
@@ -109,7 +118,9 @@ class OverlayFollower(QObject):
             placement = target_corner(target.window_id)
             if placement is not None:
                 corner, bounds = placement
-                self.panel.move(anchor_position(corner, bounds, self.panel.size()))
+                position = anchor_position(corner, bounds, self.panel.size())
+                if position != self.panel.pos():
+                    self.panel.move(position)
                 positioned = True
         if not positioned:
             screens = QGuiApplication.screens()
@@ -117,8 +128,17 @@ class OverlayFollower(QObject):
                 screen = QGuiApplication.screenAt(self.panel.geometry().center()) or QGuiApplication.primaryScreen()
                 bounds = screen.availableGeometry()
                 desired_corner = self.panel.pos() + QPoint(self.panel.width() + 12, self.panel.height() + 12)
-                self.panel.move(anchor_position(desired_corner, bounds, self.panel.size()))
-        if not self.panel.isVisible():
+                position = anchor_position(desired_corner, bounds, self.panel.size())
+                if position != self.panel.pos():
+                    self.panel.move(position)
+        shown = not self.panel.isVisible()
+        if shown:
             self.panel.show()
         if QGuiApplication.platformName() == "windows":
-            win32.ensure_overlay_visible(int(self.panel.winId()), self.controller.settings.overlay_topmost, force)
+            hwnd = int(self.panel.winId())
+            topmost = self.controller.settings.overlay_topmost
+            now = time.monotonic()
+            if force or shown or (now - self._last_recovery >= .5
+                                  and win32.overlay_needs_recovery(hwnd, topmost, target.window_id)):
+                if win32.ensure_overlay_visible(hwnd, topmost, True):
+                    self._last_recovery = now

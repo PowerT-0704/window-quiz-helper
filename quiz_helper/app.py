@@ -47,7 +47,8 @@ class MainWindow(QMainWindow):
         box = QVBoxLayout(sidebar)
         box.setContentsMargins(16, 25, 16, 20)
         box.setSpacing(10)
-        logo = label("Q", "brand")
+        logo = label("")
+        logo.setPixmap(application_icon().pixmap(46, 46))
         logo.setFixedSize(46, 46)
         logo.setAlignment(Qt.AlignmentFlag.AlignCenter)
         box.addWidget(logo)
@@ -114,6 +115,7 @@ class MainWindow(QMainWindow):
         controller.frame_preview_changed.connect(home.preview.set_frame)
         controller.region_needed.connect(self._choose_region)
         controller.answer_ready.connect(self._show_answer)
+        controller.metrics_ready.connect(lambda metrics: self.home.metrics_label.setToolTip(metrics.tooltip()))
         controller.answer_cleared.connect(self._clear_answer)
         controller.error.connect(self._show_error)
         controller.running_changed.connect(self._running_changed)
@@ -228,6 +230,7 @@ class MainWindow(QMainWindow):
         self.home.copy_button.setEnabled(False)
         self.home.explanation_label.setText("查询结果将同时显示在悬浮窗中。")
         self.home.metrics_label.setText(f"{self.controller.settings.model} · 等待查询")
+        self.home.metrics_label.setToolTip("")
         self.overlay.clear_answer()
 
     def _show_answer(self, result: AnswerResult, usage: dict, elapsed: float, cached: bool) -> None:

@@ -24,6 +24,10 @@ if os.name == "nt":
     _user32.SetWindowPos.argtypes = [wintypes.HWND, wintypes.HWND, ctypes.c_int,
                                     ctypes.c_int, ctypes.c_int, ctypes.c_int, wintypes.UINT]
     _user32.SetWindowPos.restype = wintypes.BOOL
+    _user32.GetWindowLongPtrW.argtypes = [wintypes.HWND, ctypes.c_int]
+    _user32.GetWindowLongPtrW.restype = ctypes.c_ssize_t
+    _user32.GetWindowRect.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.RECT)]
+    _user32.GetWindowRect.restype = wintypes.BOOL
     _user32.GetWindowThreadProcessId.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.DWORD)]
     _user32.GetWindowThreadProcessId.restype = wintypes.DWORD
     _user32.GetWindowTextLengthW.argtypes = [wintypes.HWND]
@@ -60,11 +64,43 @@ def is_minimized(hwnd: int) -> bool:
     return bool(is_window(hwnd) and _user32.IsIconic(hwnd))
 
 
+def overlay_needs_recovery(hwnd: int, topmost: bool, target_hwnd: int = 0) -> bool:
+    """Read native visibility, style and target overlap; never change a window."""
+    if not is_window(hwnd):
+        return False
+    if not _user32.IsWindowVisible(hwnd) or _user32.IsIconic(hwnd):
+        return True
+    if bool(_user32.GetWindowLongPtrW(hwnd, -20) & 0x8) != topmost:
+        return True
+    if not topmost or not is_window(target_hwnd) or not _user32.IsWindowVisible(target_hwnd):
+        return False
+    overlay_rect, target_rect = wintypes.RECT(), wintypes.RECT()
+    if not (_user32.GetWindowRect(hwnd, ctypes.byref(overlay_rect))
+            and _user32.GetWindowRect(target_hwnd, ctypes.byref(target_rect))):
+        return False
+    if (max(overlay_rect.left, target_rect.left) >= min(overlay_rect.right, target_rect.right)
+            or max(overlay_rect.top, target_rect.top) >= min(overlay_rect.bottom, target_rect.bottom)):
+        return False
+    # EnumWindows traverses top-level windows in z-order. Avoid a
+    # GetWindow loop that can revisit handles as unrelated windows change.
+    covered = False
+
+    @_enum_callback
+    def first_match(candidate: int, _parameter: int) -> bool:
+        nonlocal covered
+        if candidate in (hwnd, target_hwnd):
+            covered = candidate == target_hwnd
+            return False
+        return True
+
+    _user32.EnumWindows(first_match, 0)
+    return covered
+
+
 def ensure_overlay_visible(hwnd: int, topmost: bool, force: bool = False) -> bool:
     """Recover only our own window, without activating it or touching a target.
 
-    Qt isVisible() does not describe z-order or native minimization. Reasserting
-    TOPMOST keeps the overlay above another always-on-top target application.
+    Call only when native state needs repair, or explicitly force a reveal.
     """
     if not is_window(hwnd):
         return False
@@ -75,9 +111,9 @@ def ensure_overlay_visible(hwnd: int, topmost: bool, force: bool = False) -> boo
     hidden = not _user32.IsWindowVisible(hwnd) or _user32.IsIconic(hwnd)
     if hidden:
         _user32.ShowWindow(hwnd, 4)  # SW_SHOWNOACTIVATE also restores a minimized window.
-    if topmost or hidden or force:
+    if hidden or force or bool(_user32.GetWindowLongPtrW(hwnd, -20) & 0x8) != topmost:
         # NOSIZE | NOMOVE | NOACTIVATE | SHOWWINDOW | NOOWNERZORDER.
-        return bool(_user32.SetWindowPos(hwnd, -1 if topmost else 0, 0, 0, 0, 0, 0x253))
+        return bool(_user32.SetWindowPos(hwnd, -1 if topmost else -2, 0, 0, 0, 0, 0x253))
     return True
 
 

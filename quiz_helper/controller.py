@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import replace
+from dataclasses import dataclass, replace
 import hashlib
 import json
 import logging
@@ -17,6 +17,24 @@ from .capture import CaptureService, WindowInfo
 from .models import AnswerResult, AppSettings
 from .storage import AppStorage
 from . import win32
+
+
+@dataclass(frozen=True)
+class QueryMetrics:
+    capture_s: float
+    encode_s: float
+    prepare_s: float
+    request_s: float
+    total_s: float
+    image_bytes: int
+    cached: bool
+
+    def tooltip(self) -> str:
+        request = "未调用接口（缓存命中）" if self.cached else f"接口响应：{self.request_s * 1000:.0f} ms"
+        return (f"窗口捕获：{self.capture_s * 1000:.0f} ms\n"
+                f"裁剪与编码（含线程排队）：{self.encode_s * 1000:.0f} ms\n"
+                f"请求准备：{self.prepare_s * 1000:.0f} ms\n{request}\n"
+                f"总耗时：{self.total_s * 1000:.0f} ms\n图片：{self.image_bytes:,} 字节")
 
 
 class EncodeSignals(QObject):
@@ -56,6 +74,7 @@ class SessionController(QObject):
     preview_changed = Signal(object)
     frame_preview_changed = Signal(object, object)
     answer_ready = Signal(object, object, float, bool)
+    metrics_ready = Signal(object)
     error = Signal(str)
     running_changed = Signal(bool)
     region_needed = Signal(object)
@@ -79,6 +98,10 @@ class SessionController(QObject):
         self._token = 0
         self._intent = ""
         self._started = 0.0
+        self._captured_at = 0.0
+        self._encoded_at = 0.0
+        self._request_at = 0.0
+        self._image_bytes = 0
         self._job_settings = self.settings
         self._force = False
         self._file: Path | None = None
@@ -240,6 +263,8 @@ class SessionController(QObject):
         self._job_settings = replace(self.settings)
         self._force = force
         self._started = time.monotonic()
+        self._captured_at = self._encoded_at = self._request_at = self._started
+        self._image_bytes = 0
         self._intent = "query"
         self.answer_cleared.emit()
         self._set_busy(True)
@@ -249,6 +274,7 @@ class SessionController(QObject):
     def _captured(self, image: QImage) -> None:
         if not self.busy or not self._target_ready():
             return
+        self._captured_at = time.monotonic()
         self.last_frame = image.copy()
         if self._intent == "region":
             self._intent = ""
@@ -284,6 +310,8 @@ class SessionController(QObject):
         self._workers.pop(token, None)
         if token != self._token or not self.busy or not self._target_ready():
             return
+        self._encoded_at = time.monotonic()
+        self._image_bytes = len(data)
         try:
             self._file = self.storage.save_capture(data, ".jpg" if mime == "image/jpeg" else ".png")
             values = {name: getattr(self._job_settings, name) for name in (
@@ -293,12 +321,14 @@ class SessionController(QObject):
             fingerprint = hashlib.sha256(data + json.dumps(values, sort_keys=True).encode()).hexdigest()
             self._pending_hash = fingerprint
             if not self._force and self._cache is not None and fingerprint == self._cache[0]:
+                self._request_at = time.monotonic()
                 self._complete(self._cache[1], self._cache[2], True)
                 return
             key = self.storage.load_key()
             if not key:
                 raise ValueError("请先在设置页保存 API Key。")
             self.status_changed.emit("查询中")
+            self._request_at = time.monotonic()
             self.ai.solve(data, mime, self._job_settings, key)
         except (ValueError, OSError) as exc:
             self._fail(str(exc) if isinstance(exc, ValueError) else "无法保存截图，请检查目录权限和剩余空间。")
@@ -313,6 +343,7 @@ class SessionController(QObject):
             self._complete(result, usage, False)
 
     def _complete(self, result: AnswerResult, usage: dict, cached: bool) -> None:
+        responded_at = time.monotonic()
         self._finish_file()
         self._intent = ""
         self._set_busy(False)
@@ -323,8 +354,16 @@ class SessionController(QObject):
         if not cached:
             self._cache = (self._pending_hash, result, dict(usage))
         self.status_changed.emit("准备就绪")
-        logging.info("query completed; cached=%s", cached)
-        self.answer_ready.emit(result, usage, time.monotonic() - self._started, cached)
+        metrics = QueryMetrics(
+            self._captured_at - self._started, self._encoded_at - self._captured_at,
+            self._request_at - self._encoded_at, 0.0 if cached else responded_at - self._request_at,
+            time.monotonic() - self._started, self._image_bytes, cached,
+        )
+        logging.info("query completed; cached=%s capture_ms=%.1f encode_ms=%.1f prepare_ms=%.1f request_ms=%.1f total_ms=%.1f image_bytes=%d",
+                     cached, metrics.capture_s * 1000, metrics.encode_s * 1000,
+                     metrics.prepare_s * 1000, metrics.request_s * 1000, metrics.total_s * 1000, metrics.image_bytes)
+        self.metrics_ready.emit(metrics)
+        self.answer_ready.emit(result, usage, metrics.total_s, cached)
 
     def _fail(self, message: str) -> None:
         if not self.busy and not self.running:

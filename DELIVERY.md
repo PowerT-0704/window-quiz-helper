@@ -1,4 +1,56 @@
-# GitHub 首次公开发布 · 2026-11-03
+# v0.2.2 交付报告 · 2026-11-03
+
+## 1. 修改概述
+
+修复稳定状态下悬浮窗每 100 毫秒重复移动／置顶的行为：仅在原生可见性、置顶属性或实际目标遮挡需要恢复时写窗口状态，自动恢复间隔至少 500 毫秒，主动找回可立即执行。单击空白和轻微移动不再切换自由位置。Logo 改为薄荷绿扫描角标与白色勾选，完全使用几何绘图；统一侧栏、窗口、EXE 和文档图标。
+
+新增捕获、编码（含排队）、请求准备、接口响应与总耗时，以及图片字节数；主页耗时标签悬停可见，保持既有答案信号兼容。默认 60 秒超时、无客户端 Token 上限、现有设置和 DPAPI 凭据兼容保持不变。
+
+## 2. 文件变动
+
+新增：`docs/BENCHMARK.md`、`scripts/stability_smoke.py`、`tests/test_v022.py`。
+
+修改：`quiz_helper/__init__.py`、`quiz_helper/app.py`、`quiz_helper/branding.py`、`quiz_helper/controller.py`、`quiz_helper/docking.py`、`quiz_helper/releases.py`、`quiz_helper/ui.py`、`quiz_helper/win32.py`、`quiz_helper/assets/app.ico`、`scripts/overlay_smoke.py`、`scripts/ui_smoke.py`、`tests/test_controller.py`、`docs/images/app-icon.png`、`docs/images/home-light.png`、`docs/images/home-dark.png`、`docs/images/settings.png`、`README.md`、`ROADMAP.md`、`CHANGELOG.md`、`DELIVERY.md`。无删除文件，无新增生产依赖；未读取或修改真实配置、密钥和用户截图。
+
+## 3. 检查命令
+
+```powershell
+$env:QT_QPA_PLATFORM = 'offscreen'
+.\.venv\Scripts\python.exe -X faulthandler -m unittest discover -s tests -q
+.\.venv\Scripts\python.exe -m compileall -q main.py quiz_helper scripts tests
+# 以下为普通 Windows Qt 平台，使用自有测试窗口和虚构 Key：
+.\.venv\Scripts\python.exe -u scripts\overlay_smoke.py
+.\.venv\Scripts\python.exe -u scripts\stability_smoke.py --seconds 60 --output .qa\v022
+.\.venv\Scripts\python.exe -u scripts\ui_smoke.py --output .qa\v022 --benchmark 10
+.\.venv\Scripts\python.exe -u scripts\ui_smoke.py --output .qa\v022-icon --render-only
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\build.ps1
+.\.venv\Scripts\python.exe scripts\package_source.py
+git diff --check
+```
+
+另外检查 PE 内嵌图标资源、源码白名单、发布 ZIP、独立 EXE 诊断及 GitHub 附件摘要。computer-use 技能仅用于新建测试目录内的打包版实窗检查，未发布桌面截屏。
+
+## 4. 检查结果
+
+- 79 项自动检查，78 通过、1 项符号链接权限跳过。最终回归与构建前测试均正常退出；新检查覆盖拖动阈值、同设置不重建、自动恢复限频、图标内容、DPI 坐标和缓存／取消指标。
+- 旧逻辑 20 次刷新产生 20 次原生置顶；最终 60.05 秒、551 次悬停切换中，原生层级写入、Show、Hide、Move、WinIdChange 均为 0，前台焦点不变。开发期间中断／恢复观察记录见 `docs/BENCHMARK.md`，不将其隐藏为全部首轮成功。
+- 被目标重新置顶覆盖后的找回、原生隐藏／最小化找回、不抢焦点、最小化暂停均通过。实际 WGC → 本地 Mock API → 主界面／悬浮窗、刷新、缓存、解析、移动／缩放、取消和停止流程通过。
+- 十次固定题区强制查询，中位数／P95 总耗时为 493.18／530.94 ms；捕获中位数 439.87 ms。Mock 服务等待 15 ms，这不代表真实 AI 延迟；不据此自动降低图像质量。
+- v0.2.2 目录式构建成功；PyInstaller 仅报告标准库可选／跨平台模块缺失提示，无构建错误。解压到 D 盘中文路径，移除 Python／Qt 开发变量且 PATH 仅为 System32，冻结 EXE `--diagnose` 退出 0，版本、应用图标、PNG、DPAPI、TLS 与捕获接口导入通过。
+- 七档 EXE 内嵌图标与几何 ICO 字节一致；运行时小／大图标均包含白色勾选。打包版标题栏与侧栏新 Logo 实窗已检查；未自动操作系统图标缓存或旧任务栏固定项。
+- 源码白名单 55 个文件，便携包 226 个文件；发布文档及演示图片同步，不包含运行数据、真实凭据、日志或用户题目。上传资产按 SHA-256 核验，公开下载与 README 图片检查；旧版产物保留。
+
+## 5. 剩余风险
+
+用户实际手机投屏软件、Windows 10、混合 DPI 多屏和真实 AI 仍待对应环境验收。用户或其他程序持续改变目标层级时，恢复按 500 毫秒限频，不承诺永远压过所有置顶窗口。旧任务栏固定项可能沿用 Windows 缓存，可解除旧固定后固定新版 EXE。AI 答案需核对；超时／取消不保证远端不计费。
+
+## 发布
+
+仓库：`https://github.com/PowerT-0704/window-quiz-helper`；预览 Release：`https://github.com/PowerT-0704/window-quiz-helper/releases/tag/v0.2.2`。附件为 `window-quiz-helper-windows-x64-v0.2.2.zip`、`window-quiz-helper-source-v0.2.2.zip`、`SHA256SUMS.txt`。不擅自指定项目整体开源许可证，第三方许可随包保留。
+
+---
+
+# 历史交付：GitHub 首次公开发布 · 2026-11-03
 
 ## 修改概述
 

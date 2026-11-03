@@ -98,6 +98,8 @@ class SessionControllerTests(unittest.TestCase):
         self.regions: list[QImage] = []
         self.previews: list[QImage] = []
         self.controller.answer_ready.connect(lambda *values: self.answers.append(values))
+        self.metrics = []
+        self.controller.metrics_ready.connect(self.metrics.append)
         self.controller.error.connect(self.errors.append)
         self.controller.region_needed.connect(self.regions.append)
         self.controller.preview_changed.connect(self.previews.append)
@@ -312,6 +314,30 @@ class SessionControllerTests(unittest.TestCase):
         self.assertEqual(len(self.capture.calls), captures)
         self.assertFalse(self.controller.busy)
         self.assertTrue(any("Key" in message for message in self.errors))
+
+    def test_stage_metrics_and_cache_never_reuse_network_duration(self) -> None:
+        self.prepare_region()
+        self.start_query()
+        self.ai.answer()
+        metrics = self.metrics[-1]
+        self.assertFalse(metrics.cached)
+        durations = [metrics.capture_s, metrics.encode_s, metrics.prepare_s, metrics.request_s]
+        self.assertTrue(all(value >= 0 for value in durations))
+        self.assertGreaterEqual(metrics.total_s, sum(durations))
+        self.assertEqual(metrics.image_bytes, len(self.ai.calls[0][0]))
+        self.controller.query()
+        self.capture.deliver(self.image.copy())
+        self.wait_for(lambda: len(self.metrics) == 2)
+        self.assertTrue(self.metrics[-1].cached)
+        self.assertEqual(self.metrics[-1].request_s, 0)
+        self.assertIn("未调用接口", self.metrics[-1].tooltip())
+
+    def test_cancelled_query_cannot_publish_metrics(self) -> None:
+        self.prepare_region()
+        self.start_query()
+        self.controller.cancel_query()
+        self.ai.answer()
+        self.assertFalse(self.metrics)
 
 
 if __name__ == "__main__":

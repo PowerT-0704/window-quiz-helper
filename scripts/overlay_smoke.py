@@ -44,7 +44,7 @@ def main() -> int:
         QTest.qWait(200)
         follower.timer.stop()
         target.raise_()
-        QTest.qWait(100)
+        QTest.qWait(550)  # Allow the automatic layer-recovery debounce to expire.
         center = panel.geometry().center()
         before = int(native.WindowFromPoint(wintypes.POINT(center.x(), center.y())) or 0)
         assert before == int(target.winId()), "Fixture did not cover the overlay"

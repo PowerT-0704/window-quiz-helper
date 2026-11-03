@@ -11,11 +11,13 @@ import base64
 import ctypes
 from ctypes import wintypes
 from collections.abc import Callable
-from dataclasses import replace
+from dataclasses import asdict, replace
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
+import math
 from pathlib import Path
 import subprocess
+import statistics
 import sys
 import tempfile
 import threading
@@ -148,7 +150,7 @@ def save_widget(widget: QWidget, path: Path) -> None:
         raise AssertionError(f"Could not save screenshot: {path.name}")
 
 
-def run(output: Path, render_only: bool = False) -> int:
+def run(output: Path, render_only: bool = False, benchmark: int = 0) -> int:
     output = non_c_path(output)
     output.mkdir(parents=True, exist_ok=True)
     set_windows_identity()
@@ -177,8 +179,15 @@ def run(output: Path, render_only: bool = False) -> int:
             native = ctypes.WinDLL("user32", use_last_error=True)
             native.SendMessageW.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM]
             native.SendMessageW.restype = ctypes.c_ssize_t
-            assert native.SendMessageW(int(window.winId()), 0x007f, 0, 0)
-            print("PASS native window icon handle", flush=True)
+            for kind in (0, 1):  # WM_GETICON: small/titlebar and big/task-switcher.
+                handle = native.SendMessageW(int(window.winId()), 0x007f, kind, 0)
+                assert handle
+                icon = QImage.fromHICON(handle)
+                assert not icon.isNull()
+                white = [icon.pixelColor(x, y) for x in range(int(icon.width() * .41), int(icon.width() * .49) + 1)
+                         for y in range(int(icon.height() * .50), int(icon.height() * .59) + 1)]
+                assert any(pixel.red() > 220 and pixel.green() > 220 and pixel.blue() > 220 for pixel in white)
+            print("PASS native small and big window icons contain geometric check", flush=True)
             assert window.size().width() == 960 and window.size().height() == 680
             save_widget(window, output / "ui-home-idle.png")
 
@@ -321,6 +330,31 @@ def run(output: Path, render_only: bool = False) -> int:
                     assert window.overlay.isHidden()
                     assert len(answers) == 4
                     print("PASS stop cancels active request and suppresses late answer", flush=True)
+                    if benchmark:
+                        state.delay = .015
+                        measurements = []
+                        window.controller.metrics_ready.connect(measurements.append)
+                        window.controller.choose_target(target)
+                        wait_for(lambda: not window.controller.region.isEmpty() and not window.controller.busy)
+                        for index in range(benchmark):
+                            window.controller.query(force=True)
+                            wait_for(lambda: len(measurements) == index + 1 or bool(errors))
+                            assert not errors, errors
+                        rows = [asdict(item) for item in measurements]
+                        fields = ("capture_s", "encode_s", "prepare_s", "request_s", "total_s")
+                        summary = {}
+                        for field in fields:
+                            values = sorted(row[field] * 1000 for row in rows)
+                            summary[field.replace("_s", "_ms")] = {
+                                "median": round(statistics.median(values), 2),
+                                "p95": round(values[math.ceil(len(values) * .95) - 1], 2),
+                            }
+                        assert "接口响应" in window.home.metrics_label.toolTip()
+                        report = {"samples": benchmark, "scope": "WGC and local mock API; 15ms server delay",
+                                  "summary": summary, "measurements": rows}
+                        (output / "benchmark.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
+                        print(json.dumps({"benchmark_samples": benchmark, "summary": summary}), flush=True)
+                        window.controller.stop()
             else:
                 save_widget(window, output / "ui-home.png")
                 window.overlay.show_answer("B", "示例：1 加 1 等于 2。")
@@ -351,5 +385,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", type=Path, default=Path(".qa"))
     parser.add_argument("--render-only", action="store_true")
+    parser.add_argument("--benchmark", type=int, default=0)
     args = parser.parse_args()
-    raise SystemExit(run(args.output, args.render_only))
+    if args.benchmark < 0 or (args.render_only and args.benchmark):
+        parser.error("benchmark must be nonnegative and requires real fixture capture")
+    raise SystemExit(run(args.output, args.render_only, args.benchmark))

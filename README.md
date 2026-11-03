@@ -9,11 +9,11 @@
 奶白与薄荷绿的 Windows 桌面小工具，让单选、多选、判断的查询保持简洁。
 
 ![Windows](https://img.shields.io/badge/Windows-10%20%2F%2011-79b9d4?style=flat-square)
-![Version](https://img.shields.io/badge/preview-v0.2.1-318773?style=flat-square)
+![Version](https://img.shields.io/badge/preview-v0.2.2-318773?style=flat-square)
 ![Python](https://img.shields.io/badge/Python-3.14-6ba99a?style=flat-square)
 ![PySide6](https://img.shields.io/badge/PySide6-6.12.0-8dbdab?style=flat-square)
 
-[**下载 Windows 便携版**](https://github.com/PowerT-0704/window-quiz-helper/releases/tag/v0.2.1) · [快速开始](#使用便携版) · [开发路线](ROADMAP.md) · [更新日志](CHANGELOG.md) · [反馈问题](https://github.com/PowerT-0704/window-quiz-helper/issues)
+[**下载 Windows 便携版**](https://github.com/PowerT-0704/window-quiz-helper/releases/tag/v0.2.2) · [快速开始](#使用便携版) · [开发路线](ROADMAP.md) · [更新日志](CHANGELOG.md) · [反馈问题](https://github.com/PowerT-0704/window-quiz-helper/issues)
 
 </div>
 
@@ -57,11 +57,11 @@
 
 一个通过窗口图片查询 AI 答案的 Windows 桌面工具。选择目标窗口、框选一道题，点击悬浮按钮后显示单选、多选或判断题答案；可选择附带简短解析。
 
-当前版本：**0.2.1 预览版**。修复目标窗口重新置顶后盖住吸附悬浮窗的问题，增加主页“显示悬浮窗”找回按钮。采用奶白、薄荷绿与浅天蓝界面，支持全局快捷搜题、目标窗口吸附和完整选区预览。真实 DeepSeek 查询需在本地填写 API Key 后验收；Windows 10、混合 DPI 多屏仍待对应设备实测。
+当前版本：**0.2.2 预览版**。悬浮窗改为按需移动与恢复层级，避免空闲时反复置顶；超过系统拖动阈值才切换自由位置。Logo 重制为不依赖字体的扫描框与勾选符号。真实 DeepSeek 查询需在本地填写 API Key 后验收；Windows 10、混合 DPI 多屏仍待对应设备实测。
 
 ## 使用便携版
 
-前往 [Releases](https://github.com/PowerT-0704/window-quiz-helper/releases/tag/v0.2.1)，下载 **`window-quiz-helper-windows-x64-v0.2.1.zip`**。便携版无需安装 Python，API 服务需自行配置并承担费用。
+前往 [Releases](https://github.com/PowerT-0704/window-quiz-helper/releases/tag/v0.2.2)，下载 **`window-quiz-helper-windows-x64-v0.2.2.zip`**。便携版无需安装 Python，API 服务需自行配置并承担费用。
 
 1. 将整个 `题目查询助手` 文件夹解压到 **D／E 等非 C 盘可写目录**。保留 EXE 旁的 `_internal` 文件夹。
 2. 双击 `题目查询助手.exe`，进入“设置”。默认接口为 `https://api.deepseek.com`，模型为 `deepseek-flash`。
@@ -70,6 +70,8 @@
 5. 点击悬浮窗的“截图搜题”，或按 **Ctrl＋Alt＋Q**。需要解析时打开“显示简短解析”；答案可复制，重复图片可使用缓存，也可强制重新查询。
 
 悬浮窗默认跟随目标窗口右下角，拖开后进入自由位置模式，点击“恢复吸附到目标窗口”即可重新跟随。目标最小化时暂停并隐藏悬浮窗，恢复后重新吸附。等待时可以“取消本次查询”，保留目标与选区。
+
+单击空白或悬停不再切换定位模式；拖动超过系统阈值才会脱离吸附。自动层级恢复至少间隔 500 毫秒，“显示悬浮窗”可以立即找回。窗口位置未变时不重复移动。
 
 找不到悬浮窗时，在主页目标窗口一栏点击“显示悬浮窗”。开启“悬浮窗置顶”时，软件会恢复悬浮窗自身的显示层级，不抢焦点；不会改变目标窗口的层级或显示状态。目标最小化时找回按钮禁用，恢复目标后再使用。
 
@@ -88,6 +90,8 @@
 - **开发公告**：随软件附带的版本说明与已知限制，不包含在线更新。
 
 默认低强度思考、关闭解析，保持 PNG 题区原图。**客户端不设置单题 Token 上限，不发送 max_tokens 参数。**服务商仍有默认生成限制，并非无限输出。升级保留现有请求超时，默认仍为 60 秒，可在设置中调整；不自动延长或取消等待时限。查询期间防止重复提交，不自动重试。通过只上传题区、不发送历史对话、简短结构化答案和最近一次结果缓存减少开销。
+
+将鼠标放在主页的耗时标签上，可查看捕获、裁剪编码（含线程排队）、请求准备、接口响应和总耗时，以及上传图片字节数。缓存命中明确显示未调用接口；测量仅用于定位瓶颈，不会自动改变图片质量或提示词。
 
 兼容接口须支持图片输入与 Chat Completions JSON 输出；仅一个当前接口配置。远程接口必须使用 HTTPS，本机回环地址可以使用 HTTP。自定义代理支持不含凭据的 `http://主机:端口` 或 `socks5://主机:端口`；需要认证的代理可由系统代理处理。
 
@@ -140,7 +144,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build.ps1
 
 构建脚本默认先运行测试，使用目录式 PyInstaller 打包，缓存、构建产物和临时目录均设置在项目内。只收集实际用到的 Qt 模块，包含 QtMultimedia 的 FFmpeg 捕获插件，排除 WebEngine 与 PDF 模块；QtGui 钩子复用标准依赖收集，仅过滤未使用的 PDF 图片插件和虚拟键盘插件。
 
-构建输出：`dist/v0.2.1/题目查询助手/题目查询助手.exe`。按版本区分输出目录，保留旧版产物。构建脚本同时附带文档及许可证。源码压缩包按白名单收集源码、图标、测试、脚本和文档，不含 `data`、Key、截图、虚拟环境、缓存或 Git 元数据。若同版本输出已经产生 `data`，构建脚本拒绝覆盖，避免删掉运行数据。
+构建输出：`dist/v0.2.2/题目查询助手/题目查询助手.exe`。按版本区分输出目录，保留旧版产物。构建脚本同时附带文档及许可证。源码压缩包按白名单收集源码、图标、测试、脚本和文档，不含 `data`、Key、截图、虚拟环境、缓存或 Git 元数据。若同版本输出已经产生 `data`，构建脚本拒绝覆盖，避免删掉运行数据。
 
 构建期间将 PATH 限定为项目 Python 与 Windows 系统目录，避免其他开发工具携带的同名 ICU／API-set DLL 混入发布包；脚本结束时恢复调用进程原值。
 
@@ -155,7 +159,7 @@ Get-Content -LiteralPath .\data\diagnostics.json
 
 ## 验证状态与限制
 
-v0.2.1 本轮 70 项自动检查，69 项通过，1 项符号链接权限跳过。原生自有置顶窗口复现测试覆盖被遮挡找回、隐藏／最小化找回和不抢焦点；另验证框选异常后继续跟随。原捕获、本地模拟接口、吸附、刷新、快捷键和取消流程继续通过。便携构建结果见 `DELIVERY.md`。
+v0.2.2 本轮 79 项自动检查，78 项通过，1 项符号链接权限跳过。自有窗口最终 60 秒悬停测试没有多余 Show／Hide／Move／WinIdChange 或原生层级写入，且不抢焦点；被目标重新覆盖后的找回仍通过。原捕获、本地模拟接口、吸附、刷新、快捷键和取消流程继续通过。十次本地模拟查询的阶段耗时及证据限制见 [基线报告](docs/BENCHMARK.md)，便携构建结果见 `DELIVERY.md`。
 
 | 项目 | 状态 |
 |---|---|
@@ -177,7 +181,7 @@ Windows 10 1903+ x64 为适配目标，当前实测以 Windows 11 为准。
 
 | 版本 | 方向 | 状态 |
 | :--- | :--- | :--- |
-| v0.2.1 | 界面、快捷搜题、窗口吸附与找回 | 已交付；部分兼容项待实机验收 |
+| v0.2.2 | 界面、快捷搜题、窗口吸附与找回 | 已交付；部分兼容项待实机验收 |
 | v0.2 后续 | 混合 DPI、窗口兼容性、延迟与包体积优化 | 规划中 |
 | v0.3 | 用户确认后模拟点选、校准与紧急停止 | 未开始 |
 | v0.4 | 画面变化检测、去重、受控连续任务与预算 | 未开始 |
