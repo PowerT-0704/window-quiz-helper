@@ -1,0 +1,13 @@
+.venv/
+.cache/
+.qa/
+.unittest-temp/
+data/
+dist/
+build/
+__pycache__/
+*.py[cod]
+*.spec
+*.log
+*.zip
+.env*
